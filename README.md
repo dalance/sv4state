@@ -3,6 +3,10 @@
 sv4state is a Rust library for SystemVerilog 4-state value.
 `logic` value which is passed throgh SystemVerilog DPI can be handled by this library.
 
+[![Actions Status](https://github.com/dalance/sv4state/workflows/Rust/badge.svg)](https://github.com/dalance/sv4state/actions)
+[![Crates.io](https://img.shields.io/crates/v/sv4state.svg)](https://crates.io/crates/sv4state)
+[![Docs.rs](https://docs.rs/sv4state/badge.svg)](https://docs.rs/sv4state)
+
 ## Example
 
 `svLogicVecVal` shows a 32bit `logic` value of SystemVerilog.
