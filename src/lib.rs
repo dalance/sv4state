@@ -1,11 +1,24 @@
-use num_traits::{FromPrimitive, PrimInt, WrappingShr};
-use std::fmt::Debug;
+#![doc = include_str!("../README.md")]
 
+use num_traits::{FromPrimitive, PrimInt, WrappingShr};
+use std::fmt::{Debug, LowerHex};
+
+/// Type for SystemVerilog 4-state value
 #[derive(Copy, Clone, Debug)]
 pub struct Sv4State<T: Copy + Debug> {
+    /// value
     pub v: T,
+    /// bit flag of hi-z
     pub z: T,
+    /// bit flag of x
     pub x: T,
+}
+
+/// Type for packed logic array defined by IEEE 1800-2017 Annex I
+#[repr(C)]
+pub struct svLogicVecVal {
+    pub aval: u32,
+    pub bval: u32,
 }
 
 impl<T: Copy + Debug + PrimInt + WrappingShr> std::fmt::Binary for Sv4State<T> {
@@ -23,22 +36,20 @@ impl<T: Copy + Debug + PrimInt + WrappingShr> std::fmt::Binary for Sv4State<T> {
             let x = (self.x.wrapping_shr(payload_width - i - 1)) & T::one();
 
             if z == T::one() {
-                buf.push_str("z")
+                buf.push('z')
             } else if x == T::one() {
-                buf.push_str("x")
+                buf.push('x')
             } else if v == T::one() {
-                buf.push_str("1")
+                buf.push('1')
             } else {
-                buf.push_str("0")
+                buf.push('0')
             }
         }
         write!(f, "{}", buf)
     }
 }
 
-impl<T: Copy + Debug + PrimInt + WrappingShr + FromPrimitive + std::fmt::LowerHex>
-    std::fmt::LowerHex for Sv4State<T>
-{
+impl<T: Copy + Debug + PrimInt + WrappingShr + FromPrimitive + LowerHex> LowerHex for Sv4State<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let payload_width = T::zero().count_zeros();
         let mut buf = if f.alternate() {
@@ -55,13 +66,13 @@ impl<T: Copy + Debug + PrimInt + WrappingShr + FromPrimitive + std::fmt::LowerHe
             let x = (self.x.wrapping_shr(payload_width - (i + 1) * 4)) & all_hi;
 
             if z == all_hi {
-                buf.push_str("z")
+                buf.push('z')
             } else if z != T::zero() {
-                buf.push_str("Z")
+                buf.push('Z')
             } else if x == all_hi {
-                buf.push_str("x")
+                buf.push('x')
             } else if x != T::zero() {
-                buf.push_str("X")
+                buf.push('X')
             } else {
                 buf.push_str(&format!("{:x}", v))
             }
@@ -71,7 +82,7 @@ impl<T: Copy + Debug + PrimInt + WrappingShr + FromPrimitive + std::fmt::LowerHe
 }
 
 impl<T: Copy + Debug + PrimInt + FromPrimitive> Sv4State<T> {
-    pub fn from_dpi(data: &[u64]) -> Vec<Self> {
+    pub fn from_dpi(data: &[svLogicVecVal]) -> Vec<Self> {
         let payload_width = T::zero().count_zeros() as usize;
         let bit_width = 32 * data.len();
         let len = if bit_width % payload_width == 0 {
@@ -94,10 +105,10 @@ impl<T: Copy + Debug + PrimInt + FromPrimitive> Sv4State<T> {
                     break;
                 }
 
-                let aval = (data[index / 4] >> (index % 4) * 8 + 0) & 0xff;
-                let bval = (data[index / 4] >> (index % 4) * 8 + 32) & 0xff;
-                let aval = T::from_u64(aval).unwrap();
-                let bval = T::from_u64(bval).unwrap();
+                let aval = data[index / 4].aval >> ((index % 4) * 8) & 0xff;
+                let bval = data[index / 4].bval >> ((index % 4) * 8) & 0xff;
+                let aval = T::from_u32(aval).unwrap();
+                let bval = T::from_u32(bval).unwrap();
                 let aval = aval << (j * 8);
                 let bval = bval << (j * 8);
 
@@ -118,7 +129,17 @@ mod tests {
 
     #[test]
     fn from_dpi_u8() {
-        let sv_u8 = Sv4State::<u8>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u8 = Sv4State::<u8>::from_dpi(&buf);
 
         assert_eq!(sv_u8[0].v, 0x67);
         assert_eq!(sv_u8[0].z, 0x00);
@@ -148,7 +169,17 @@ mod tests {
 
     #[test]
     fn from_dpi_u16() {
-        let sv_u16 = Sv4State::<u16>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u16 = Sv4State::<u16>::from_dpi(&buf);
 
         assert_eq!(sv_u16[0].v, 0x4567);
         assert_eq!(sv_u16[0].z, 0x0000);
@@ -166,7 +197,17 @@ mod tests {
 
     #[test]
     fn from_dpi_u32() {
-        let sv_u32 = Sv4State::<u32>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u32 = Sv4State::<u32>::from_dpi(&buf);
 
         assert_eq!(sv_u32[0].v, 0x01234567);
         assert_eq!(sv_u32[0].z, 0x00000000);
@@ -178,7 +219,17 @@ mod tests {
 
     #[test]
     fn from_dpi_u64() {
-        let sv_u64 = Sv4State::<u64>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u64 = Sv4State::<u64>::from_dpi(&buf);
 
         assert_eq!(sv_u64[0].v, 0x0000000001234567);
         assert_eq!(sv_u64[0].z, 0x7654321000000000);
@@ -187,7 +238,17 @@ mod tests {
 
     #[test]
     fn from_dpi_u128() {
-        let sv_u128 = Sv4State::<u128>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u128 = Sv4State::<u128>::from_dpi(&buf);
 
         assert_eq!(sv_u128[0].v, 0x0000000001234567);
         assert_eq!(sv_u128[0].z, 0x7654321000000000);
@@ -196,7 +257,17 @@ mod tests {
 
     #[test]
     fn format_binary() {
-        let sv_u16 = Sv4State::<u16>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u16 = Sv4State::<u16>::from_dpi(&buf);
 
         assert_eq!(format!("{:b}", sv_u16[0]), "0100010101100111");
         assert_eq!(format!("{:#b}", sv_u16[0]), "0b0100010101100111");
@@ -210,7 +281,17 @@ mod tests {
 
     #[test]
     fn format_lower_hex() {
-        let sv_u32 = Sv4State::<u32>::from_dpi(&[0x00000000_01234567, 0xffffffff_89abcdef]);
+        let buf = [
+            svLogicVecVal {
+                aval: 0x01234567,
+                bval: 0x00000000,
+            },
+            svLogicVecVal {
+                aval: 0x89abcdef,
+                bval: 0xffffffff,
+            },
+        ];
+        let sv_u32 = Sv4State::<u32>::from_dpi(&buf);
 
         assert_eq!(format!("{:x}", sv_u32[0]), "01234567");
         assert_eq!(format!("{:#x}", sv_u32[0]), "0x01234567");
